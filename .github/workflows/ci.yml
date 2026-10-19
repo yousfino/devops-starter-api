@@ -1,7 +1,8 @@
+# change 1
 # on pull request, it only runs tests and builds the image (no push)
 # on push to main, it runs tests, builds the image, tags it with both the Git commit SHA and 'latest', and pushes it to the GitHub Container Registry ghcr.io
 
-name: Continuous Integration & Container Publishing # added "& Container Publishing"
+name: Continuous Integration & Container Publishing # added "& Container Publishing" (change 1)
 
 on:
   push:
@@ -13,7 +14,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# added the entire env block
+# added the entire env block (change 1)
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -38,7 +39,7 @@ jobs:
       - name: Execute test suite
         run: npm test
 
-  # this replaced the one below it so we can allow for image registry publishing
+  # this replaced the one below it so we can allow for image registry publishing (change 1)
   build-and-push:
     name: Build & Publish Image
     needs: test
@@ -80,7 +81,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # the above replaced the below
+  # the above replaced the below (change 1)
   # build-container:
   #   name: Build & Verify Docker Image
   #   needs: test
@@ -100,3 +101,22 @@ jobs:
   #         tags: devops-starter-api:${{ github.sha }}
   #         cache-from: type=gha
   #         cache-to: type=gha,mode=max
+
+  # change 2
+  deploy:
+    name: Trigger Cloud Deployment
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Cloud Deploy Webhook
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "Error: RENDER_DEPLOY_HOOK_URL secret is not configured."
+            exit 1
+          fi
+          echo "Sending deployment trigger to cloud runtime..."
+          curl -f -X POST "$DEPLOY_HOOK"
+          echo "Deployment signal sent successfully."
