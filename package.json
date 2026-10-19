@@ -1,0 +1,21 @@
+{
+  "name": "devops-starter-api",
+  "version": "1.0.0",
+  "description": "Containerized REST API with automated CI/CD and cloud deployment",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "jest --runInBand --detectOpenHandles"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "jest": "^30.5.2",
+    "supertest": "^7.3.1"
+  }
+}
