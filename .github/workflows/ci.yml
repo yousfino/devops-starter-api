@@ -47,6 +47,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }} # expose the image version as an output for downstream jobs
 
     steps:
       - name: Check out repository
@@ -68,8 +70,12 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # there was an issue here that caused the workflow to exit with code 1 (error).
+            # format=short shortens the SHA to 7 characters, which is a common practice for tagging Docker images with Git commit SHAs
+            # when Trivy queries GHCR for the image, it is using the 40-character SHA, so we need to ensure that the tag used for the image push matches what Trivy expects. 
+            # By using format=short, we can ensure that the tag is consistent with what Trivy will look for.
             type=sha,format=short,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
@@ -106,12 +112,17 @@ jobs:
   container-security-scan:
     name: Run Trivy Vulnerability Scanner
     needs: build-and-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Run Trivy Vulnerability Scanner
         uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          # here, we need to pass the short SHA tag to Trivy, since that is what we used to tag the image in the build-and-push job
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs['build-and-push'].outputs['image-tag'] }}
           format: "table"
           exit-code: "0" # Change to '1' to fail the pipeline if critical vulnerabilities are found
           ignore-unfixed: true
