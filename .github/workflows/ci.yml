@@ -102,10 +102,26 @@ jobs:
   #         cache-from: type=gha
   #         cache-to: type=gha,mode=max
 
-  # change 2
+  # change 3 added as a job (can also be added as a step in the build-and-push job if desired)
+  container-security-scan:
+    name: Run Trivy Vulnerability Scanner
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          format: "table"
+          exit-code: "0" # Change to '1' to fail the pipeline if critical vulnerabilities are found
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+  # change 2 added as a job
   deploy:
     name: Trigger Cloud Deployment
-    needs: build-and-push
+    needs: container-security-scan
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -120,3 +136,24 @@ jobs:
           echo "Sending deployment trigger to cloud runtime..."
           curl -f -X POST "$DEPLOY_HOOK"
           echo "Deployment signal sent successfully."
+
+      # change 4 added as a step
+      - name: Verify Live Service Health
+        run: |
+          echo "Waiting for deployment rollout to stabilize (30s)..."
+          sleep 30
+
+          # Retry curl up to 5 times to confirm /health returns 200
+          for i in {1..5}; do
+            # safe to expose the health endpoint since it is not authenticated and only returns a simple status
+            RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://devops-starter-api-sha-e185178.onrender.com/health)
+            if [ "$RESPONSE" -eq 200 ]; then
+              echo "Health check passed with HTTP 200!"
+              exit 0
+            fi
+            echo "Attempt $i failed with status $RESPONSE. Retrying in 10s..."
+            sleep 10
+          done
+
+          echo "Health check failed after 5 attempts."
+          exit 1
