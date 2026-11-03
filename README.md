@@ -1,5 +1,3 @@
-cat << 'EOF' > README.md
-
 # DevOps Starter API
 
 A lightweight containerized REST API with an automated CI/CD pipeline and cloud deployment.
